@@ -9,7 +9,6 @@ metadata:
     {{- toYaml .Values.global.service.annotations | nindent 4}}
 spec:
   type: {{ .Values.global.service.type }}
-  clusterIP: {{ .Values.global.service.clusterIP }}
   ports:
     - port: {{ .Values.shovel.ports.http }}
       targetPort: {{ .Values.shovel.ports.http }}
