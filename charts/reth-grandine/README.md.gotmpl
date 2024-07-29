@@ -1,0 +1,26 @@
+{{ template "chart.header" . }}
+{{ template "chart.badgesSection" . }}
+
+{{ template "chart.description" . }}
+
+
+{{ template "chart.homepageLine" . }}
+
+{{ template "chart.maintainersHeader" . }}
+{{ template "chart.maintainersTable" . }}
+{{ template "chart.deprecationWarning" . }}
+{{ template "chart.sourcesSection" . }}
+{{ template "chart.requirementsSection" . }}
+
+## Quick Start
+
+```bash
+# mainnet
+helm install -n mainnet reth-grandine charts/reth-grandine --set global.network=mainnet --set grandine.checkpointSync.enabled=true --set grandine.checkpointSync.url=https://beaconstate.info --set reth.ports.p2p=30000 --set grandine.ports.p2p=30001 --set global.persistence.size=3500Gi
+# holesky testnet
+helm install -n holesky reth-grandine-holesky charts/reth-grandine --set global.network=holesky --set grandine.checkpointSync.enabled=true --set grandine.checkpointSync.url=https://holesky.beaconstate.info --set reth.ports.p2p=30002 --set grandine.ports.p2p=30003 --set global.persistence.size=200Gi
+# sepolia testnet
+helm install -n sepolia reth-grandine-sepolia charts/reth-grandine --set global.network=sepolia --set grandine.checkpointSync.enabled=true --set grandine.checkpointSync.url=https://sepolia.beaconstate.info --set reth.ports.p2p=30004 --set grandine.ports.p2p=30005 --set global.persistence.size=200Gi
+```
+
+{{ template "chart.valuesSection" . }}

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: shovel
+description: Helm chart for Shovel
+sources:
+  - https://github.com/indexsupply/code
+type: application
+version: "0.1.0"
+appVersion: "1.6"
+dependencies:
+  - name: postgresql
+    condition: global.postgresql.enabled
+    version: "15.4.0"
+    repository: "https://charts.bitnami.com/bitnami"
+maintainers:
+  - name: laibe
+    url: https://github.com/laibe

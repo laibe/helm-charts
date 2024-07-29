@@ -1,0 +1,35 @@
+# Expose p2p ports
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "reth-grandine.fullname" . }}-p2p
+  labels:
+    {{- include "reth-grandine.labels" $ | nindent 4 }}
+    pod: {{ include "reth-grandine.fullname" $ }}-0
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  ports:
+    - port: {{ .Values.reth.ports.p2p}}
+      targetPort: {{ .Values.reth.ports.p2p}}
+      nodePort: {{ .Values.reth.ports.p2p}}
+      protocol: UDP
+      name: ec-p2p-udp
+    - port: {{ .Values.reth.ports.p2p}}
+      targetPort: {{ .Values.reth.ports.p2p}}
+      nodePort: {{ .Values.reth.ports.p2p}}
+      protocol: TCP
+      name: ec-p2p-tcp
+    - port: {{ .Values.grandine.ports.p2p}}
+      targetPort: {{ .Values.grandine.ports.p2p}}
+      nodePort: {{ .Values.grandine.ports.p2p}}
+      protocol: UDP
+      name: cc-p2p-udp
+    - port: {{ .Values.grandine.ports.p2p}}
+      targetPort: {{ .Values.grandine.ports.p2p}}
+      nodePort: {{ .Values.grandine.ports.p2p}}
+      protocol: TCP
+      name: cc-p2p-tcp
+  selector:
+    {{- include "reth-grandine.selectorLabels" . | nindent 4 }}
+    statefulset.kubernetes.io/pod-name: "{{ include "reth-grandine.fullname" $ }}-0"

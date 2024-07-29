@@ -1,0 +1,201 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "reth-grandine.fullname" . }}
+  labels:
+    {{- include "reth-grandine.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.global.podAnnotations | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "reth-grandine.selectorLabels" . | nindent 6 }}
+  serviceName: {{ include "reth-grandine.fullname" . }}
+  updateStrategy:
+    {{- toYaml .Values.global.updateStrategy | nindent 4 }}
+  template:
+    metadata:
+      labels:
+        {{- include "reth-grandine.selectorLabels" . | nindent 8 }}
+        {{- if .Values.global.podLabels }}
+          {{ toYaml .Values.global.podLabels | indent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "reth-grandine.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.global.securityContext | nindent 8 }}
+      initContainers:
+        # init-common
+        - name: {{ .Values.initCommon.name }}
+          image: "{{ .Values.initCommon.image.repository }}:{{ .Values.initCommon.image.tag }}"
+          imagePullPolicy: {{ .Values.initCommon.image.pullPolicy }}
+          securityContext: {{- toYaml .Values.initCommon.containerSecurityContext | nindent 12 }}
+          # Create jwt for execution client <-> consensus client authentication and get public ip
+          command:
+            - bash
+            - -c
+            - >
+              chown -R {{ .Values.global.securityContext.runAsUser }}:{{ .Values.global.securityContext.runAsGroup }} /data;
+              mkdir -p /data/common;
+              openssl rand -hex 32 > /data/common/jwt.hex;
+              echo -n PUBLIC_IP=$(curl -s http://icanhazip.com) > /data/common/publicip.env;
+              cat /data/common/publicip.env;
+          volumeMounts:
+            - name: storage
+              mountPath: "/data"
+      containers:
+        # reth
+        - name: {{ .Values.reth.name }}
+          securityContext:
+           {{- toYaml .Values.reth.containerSecurityContext | nindent 12 }}
+          image: "{{ .Values.reth.image.repository }}:{{ .Values.reth.image.tag }}"
+          imagePullPolicy: {{ .Values.reth.image.pullPolicy }}
+          env:
+            - name: RUST_LOG
+              value: {{ .Values.reth.logLevel }}
+          command:
+            - sh
+            - -ac
+            - >
+              . /data/common/publicip.env;
+              exec reth node
+              {{- if .Values.reth.fullNode.enabled }}
+              --full
+              {{- end }}
+              --log.file.filter={{ .Values.reth.logLevel }}
+              --log.file.max-files=0
+              --log.stdout.filter={{ .Values.reth.logLevel }}
+              --nat=extip:$PUBLIC_IP
+              --port={{ .Values.reth.ports.p2p }}
+              --discovery.port={{ .Values.reth.ports.p2p }}
+              --datadir=/data/reth
+              --metrics="0.0.0.0:{{ .Values.reth.ports.metrics }}"
+              --chain={{ .Values.global.network }}
+              --authrpc.addr=0.0.0.0
+              --authrpc.jwtsecret=/data/common/jwt.hex
+              --authrpc.port={{ .Values.global.engineRpcPort }}
+              --http
+              --http.addr=0.0.0.0
+              --http.api={{ join "," .Values.reth.rpc.httpApi }}
+              --http.port={{ .Values.reth.ports.rpc }}
+              --http.corsdomain="*"
+              --ws
+              --ws.addr=0.0.0.0
+              --ws.port={{ .Values.reth.ports.ws }}
+              --ws.api={{ join "," .Values.reth.rpc.httpApi }}
+              --rpc-max-request-size={{ .Values.reth.rpc.maxRequestSize }}
+              --rpc-max-response-size={{ .Values.reth.rpc.maxResponseSize }}
+              --rpc-max-subscriptions-per-connection={{ .Values.reth.rpc.maxSubscriptionsPerConnection }}
+              --rpc-max-connections={{ .Values.reth.rpc.maxConnections }}
+              --rpc-max-tracing-requests={{ .Values.reth.rpc.maxTracingRequests }}
+              {{- if .Values.reth.staticPeers.enabled }}
+              --trusted-peers={{ join "," .Values.reth.staticPeers.peers }}
+              {{- end }}
+          volumeMounts:
+            - name: storage
+              mountPath: "/data/reth"
+              subPath: reth
+            - name: storage
+              mountPath: "/data/common"
+              subPath: common
+              readOnly: true
+          ports:
+            - name: ec-p2p-tcp
+              containerPort: {{ .Values.reth.ports.p2p }}
+              protocol: TCP
+            - name: ec-p2p-udp
+              containerPort: {{ .Values.reth.ports.p2p }}
+              protocol: UDP
+            - name: ec-http-rpc
+              containerPort: {{ .Values.reth.ports.rpc }}
+              protocol: TCP
+            - name: ec-http-ws
+              containerPort: {{ .Values.reth.ports.ws }}
+              protocol: TCP
+            - name: ec-metrics
+              containerPort: {{ .Values.reth.ports.metrics }}
+          livenessProbe:
+            {{- toYaml .Values.reth.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.reth.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.reth.resources | nindent 12 }}
+        # grandine
+        - name: {{ .Values.grandine.name }}
+          securityContext:
+           {{- toYaml .Values.grandine.containerSecurityContext | nindent 12 }}
+          image: "{{ .Values.grandine.image.repository }}:{{ .Values.grandine.image.tag }}"
+          imagePullPolicy: {{ .Values.grandine.image.pullPolicy }}
+          command:
+            - sh
+            - -ac
+            - >
+              . /data/common/publicip.env;
+              grandine
+              --data-dir=/data/grandine
+              --eth1-rpc-urls=http://127.0.0.1:{{ .Values.global.engineRpcPort }}
+              --prune-storage
+              --disable-upnp
+              --libp2p-port={{ .Values.grandine.ports.p2p }}
+              --discovery-port={{ .Values.grandine.ports.p2p }}
+              --http-port={{ .Values.grandine.ports.rest }}
+              --http-address=0.0.0.0
+              --metrics
+              --metrics-address=0.0.0.0
+              --metrics-port={{ .Values.grandine.ports.metrics }}
+              --jwt-secret=/data/common/jwt.hex
+              --network={{ .Values.global.network }}
+              {{- if .Values.grandine.checkpointSync.enabled }}
+              --checkpoint-sync-url={{ .Values.grandine.checkpointSync.url }}
+              {{- end }}
+              {{- if .Values.grandine.extBuilder.enabled }}
+              --builder-url={{ .Values.grandine.extBuilder.url }}
+              {{- end }}
+          volumeMounts:
+            - name: storage
+              mountPath: "/data/grandine"
+              subPath: grandine
+            - name: storage
+              mountPath: "/data/common"
+              subPath: common
+              readOnly: true
+          ports:
+            - name: cc-p2p-tcp
+              containerPort: {{ .Values.grandine.ports.p2p }}
+              protocol: TCP
+            - name: cc-p2p-udp
+              containerPort: {{ .Values.grandine.ports.p2p }}
+              protocol: UDP
+            - name: cc-http-rest
+              containerPort: {{ .Values.grandine.ports.rest }}
+              protocol: TCP
+            - name: cc-metrics
+              containerPort: {{ .Values.grandine.ports.metrics }}
+          livenessProbe:
+            {{- toYaml .Values.grandine.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.grandine.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.grandine.resources | nindent 12 }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      affinity:
+        {{- toYaml .Values.global.affinity | indent 8 }}
+      tolerations:
+        {{- toYaml .Values.global.tolerations | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.global.terminationGracePeriodSeconds }}
+
+  volumeClaimTemplates:
+  - metadata:
+      name: storage
+    spec:
+      accessModes:
+        {{- toYaml .Values.global.persistence.accessModes | nindent 8 }}
+      storageClassName: {{ .Values.global.persistence.storageClassName }}
+      resources:
+        requests:
+          storage: {{ .Values.global.persistence.size }}

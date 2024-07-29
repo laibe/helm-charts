@@ -1,0 +1,33 @@
+{{- if .Values.global.podMonitor.create -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "reth-grandine.fullname" . }}
+  labels:
+    {{- include "reth-grandine.labels" . | nindent 4 }}
+spec:
+  podMetricsEndpoints:
+  # reth
+  - interval: {{ .Values.reth.podMonitor.interval }}
+    {{- if .Values.reth.podMonitor.scrapeTimeout }}
+    scrapeTimeout: {{ .Values.reth.podMonitor.scrapeTimeout }}
+    {{- end }}
+    honorLabels: true
+    port: ec-metrics
+    path: {{ .Values.reth.podMonitor.path }}
+  # grandine
+  - interval: {{ .Values.grandine.podMonitor.interval }}
+    {{- if .Values.grandine.podMonitor.scrapeTimeout }}
+    scrapeTimeout: {{ .Values.grandine.podMonitor.scrapeTimeout }}
+    {{- end }}
+    honorLabels: true
+    port: ec-metrics
+    path: {{ .Values.grandine.podMonitor.path }}
+  jobLabel: {{ .Release.Name }}
+  selector:
+    matchLabels:
+      {{- include "reth-grandine.selectorLabels" . | nindent 8 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}

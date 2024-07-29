@@ -1,0 +1,35 @@
+{{- if .Values.global.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "reth-grandine.fullname" . }}
+  labels:
+    {{- include "reth-grandine.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.global.service.annotations | nindent 4}}
+spec:
+  type: {{ .Values.global.service.type }}
+  ports:
+    - port: {{ .Values.reth.ports.rpc }}
+      targetPort: {{ .Values.reth.ports.rpc }}
+      protocol: TCP
+      name: ec-http-rpc
+    - port: {{ .Values.reth.ports.ws }}
+      targetPort: {{ .Values.reth.ports.ws }}
+      protocol: TCP
+      name: ec-http-ws
+    - port: {{ .Values.reth.ports.metrics }}
+      targetPort: {{ .Values.reth.ports.metrics }}
+      protocol: TCP
+      name: ec-metrics
+    - port: {{ .Values.grandine.ports.rest }}
+      targetPort: {{ .Values.grandine.ports.rest }}
+      protocol: TCP
+      name: cc-http-rest
+    - port: {{ .Values.grandine.ports.metrics }}
+      targetPort: {{ .Values.grandine.ports.metrics }}
+      protocol: TCP
+      name: cc-metrics
+  selector:
+    {{- include "reth-grandine.selectorLabels" . | nindent 4 }}
+{{- end }}
